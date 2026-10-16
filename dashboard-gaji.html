@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Penggunaan Gaji</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; background: #f0f2f5; color: #1f2328; font-size: 14px; }
+
+    header { background: #1e3a5f; color: #fff; padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: 0.3px; }
+    header span { font-size: 0.82rem; opacity: 0.75; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+    /* KPI Cards */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 22px; }
+    .kpi { background: #fff; border-radius: 10px; padding: 16px 18px; border-left: 4px solid #3b82d4; }
+    .kpi.green { border-color: #22c55e; }
+    .kpi.red { border-color: #ef4444; }
+    .kpi.purple { border-color: #7c5cd8; }
+    .kpi.orange { border-color: #f59e0b; }
+    .kpi label { font-size: 0.78rem; color: #57606a; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi .val { font-size: 1.45rem; font-weight: 700; margin-top: 4px; }
+    .kpi .sub { font-size: 0.78rem; color: #57606a; margin-top: 2px; }
+
+    /* Grid layout */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+    @media(max-width:780px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+    .card { background: #fff; border-radius: 10px; padding: 18px; }
+    .card h3 { font-size: 0.9rem; font-weight: 600; color: #1e3a5f; margin-bottom: 14px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+
+    canvas { max-width: 100%; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { background: #f7f8fa; color: #57606a; font-weight: 600; padding: 8px 10px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 0.78rem; text-transform: uppercase; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f0f2f5; }
+    tr:hover td { background: #f7f8fa; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+    .badge.keperluan { background: #dbeafe; color: #1e40af; }
+    .badge.keinginan { background: #fef3c7; color: #92400e; }
+    .badge.simpanan { background: #dcfce7; color: #166534; }
+    .badge.pelaburan { background: #ede9fe; color: #4c1d95; }
+    .badge.hutang { background: #fee2e2; color: #991b1b; }
+
+    /* Progress bar */
+    .progress-wrap { margin-bottom: 10px; }
+    .progress-wrap label { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }
+    .bar-bg { background: #e5e7eb; border-radius: 99px; height: 10px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s; }
+
+    /* Input tables */
+    .btn { padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; background: #1e3a5f; color: #fff; transition: background 0.2s; }
+    .btn:hover { background: #2d5490; }
+    .btn.red { background: #ef4444; }
+    .btn.red:hover { background: #dc2626; }
+    .btn-sm { padding: 4px 10px; font-size: 0.78rem; border-radius: 5px; border: none; cursor: pointer; background: #fee2e2; color: #991b1b; font-weight: 600; }
+    .btn-tambah { padding: 6px 14px; border-radius: 6px; border: 1px dashed #3b82d4; background: #eff6ff; color: #1e3a5f; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-tambah:hover { background: #dbeafe; border-color: #1e3a5f; }
+    .btn-hapus-baris { width: 24px; height: 24px; border-radius: 4px; border: none; background: #fee2e2; color: #991b1b; font-size: 0.85rem; cursor: pointer; font-weight: 700; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s; }
+    .btn-hapus-baris:hover { background: #fecaca; }
+    .input-table td:last-child { width: 36px; text-align: center; }
+    .input-section { margin-bottom: 22px; }
+    .input-tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 2px solid #e5e7eb; }
+    .input-tab { padding: 8px 18px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; background: #f7f8fa; color: #57606a; border-radius: 8px 8px 0 0; border: 1px solid #e5e7eb; border-bottom: none; margin-right: 4px; transition: all 0.15s; }
+    .input-tab.active { background: #fff; color: #1e3a5f; border-color: #e5e7eb; border-bottom: 2px solid #fff; margin-bottom: -2px; }
+    .input-panel { display: none; background: #fff; border-radius: 0 10px 10px 10px; border: 1px solid #e5e7eb; padding: 16px; }
+    .input-panel.active { display: block; }
+    .input-table { width: 100%; border-collapse: collapse; }
+    .input-table th { background: #f7f8fa; color: #57606a; font-weight: 600; padding: 7px 10px; font-size: 0.78rem; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; text-align: left; }
+    .input-table td { padding: 5px 6px; border-bottom: 1px solid #f0f2f5; }
+    .input-table td:first-child { width: 32px; text-align: center; color: #aaa; font-size: 0.8rem; }
+    .input-table td:last-child { width: 100px; text-align: right; font-weight: 700; font-size: 0.85rem; color: #1e3a5f; }
+    .input-table input[type="text"] { width: 100%; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 5px; font-size: 0.85rem; color: #1f2328; }
+    .input-table input[type="number"] { width: 120px; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 5px; font-size: 0.85rem; color: #1f2328; text-align: right; }
+    .input-table input:focus { outline: none; border-color: #3b82d4; background: #eff6ff; }
+    .input-table select { padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 5px; font-size: 0.82rem; color: #1f2328; }
+    .input-table select:focus { outline: none; border-color: #3b82d4; }
+    .panel-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; }
+    .panel-footer .total-lbl { font-size: 0.82rem; color: #57606a; }
+    .panel-footer .total-val { font-size: 1.1rem; font-weight: 700; color: #1e3a5f; }
+    .bulan-select-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #57606a; }
+    .bulan-select-wrap select { padding: 5px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.85rem; }
+    .bulan-select-wrap select:focus { outline: none; border-color: #3b82d4; }
+
+    /* Gaji input */
+    .gaji-bar { background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 22px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .gaji-bar label { font-size: 0.82rem; color: #57606a; font-weight: 600; }
+    .gaji-bar input { padding: 8px 12px; border: 2px solid #3b82d4; border-radius: 8px; font-size: 1rem; font-weight: 700; color: #1e3a5f; width: 180px; }
+    .gaji-bar input:focus { outline: none; border-color: #1e3a5f; }
+    .gaji-bar .hint { font-size: 0.78rem; color: #57606a; }
+
+    /* Analysis insight */
+    .insight-list { list-style: none; }
+    .insight-list li { padding: 8px 0; border-bottom: 1px solid #f0f2f5; font-size: 0.85rem; display: flex; gap: 8px; align-items: flex-start; }
+    .insight-list li:last-child { border-bottom: none; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .dot.green { background: #22c55e; }
+    .dot.red { background: #ef4444; }
+    .dot.yellow { background: #f59e0b; }
+    .dot.blue { background: #3b82d4; }
+
+    /* Month tabs */
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab { padding: 5px 14px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 0.82rem; cursor: pointer; background: #f7f8fa; color: #57606a; transition: all 0.2s; }
+    .tab.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+
+    .section-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 14px; margin-top: 8px; }
+    .empty { color: #57606a; font-size: 0.85rem; text-align: center; padding: 20px 0; }
+
+    /* PDF button */
+    .btn-pdf { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; background: #dc2626; color: #fff; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .btn-pdf:hover { background: #b91c1c; }
+    .btn-pdf:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-excel { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; background: #16a34a; color: #fff; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .btn-excel:hover { background: #15803d; }
+    .btn-excel:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* ── PRINT / PDF styles ── */
+    @media print {
+      body { background: #fff; font-size: 11pt; }
+      header { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #fff !important; padding: 12px 20px; margin-bottom: 16px; }
+      .container { max-width: 100%; padding: 0 10px; }
+      .no-print { display: none !important; }
+      .kpi-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 14px; }
+      .kpi { border-left: 4px solid #3b82d4; padding: 10px 12px; background: #f7f8fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; break-inside: avoid; }
+      .kpi.green { border-color: #22c55e !important; }
+      .kpi.red   { border-color: #ef4444 !important; }
+      .kpi.purple{ border-color: #7c5cd8 !important; }
+      .kpi.orange{ border-color: #f59e0b !important; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+      .card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; break-inside: avoid; }
+      .input-section { display: none !important; }
+      .tabs { display: none !important; }
+      .gaji-bar { border: 1px solid #e5e7eb; padding: 10px 14px; margin-bottom: 14px; }
+      canvas { max-height: 200px !important; }
+      table { font-size: 9pt; }
+      th, td { padding: 5px 7px !important; }
+      .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge.keperluan { background: #dbeafe !important; color: #1e40af !important; }
+      .badge.keinginan { background: #fef3c7 !important; color: #92400e !important; }
+      .badge.simpanan  { background: #dcfce7 !important; color: #166534 !important; }
+      .badge.pelaburan { background: #ede9fe !important; color: #4c1d95 !important; }
+      .badge.hutang    { background: #fee2e2 !important; color: #991b1b !important; }
+      .bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .insight-list li { padding: 5px 0; }
+      .pdf-report-header { display: block !important; }
+      @page { size: A4 portrait; margin: 14mm 12mm 14mm 12mm; }
+    }
+    .pdf-report-header { display: none; border-bottom: 2px solid #1e3a5f; padding-bottom: 10px; margin-bottom: 16px; }
+    .pdf-report-header h2 { font-size: 1.1rem; font-weight: 700; color: #1e3a5f; }
+    .pdf-report-header p  { font-size: 0.82rem; color: #57606a; margin-top: 3px; }
+
+    /* ── CHATBOT ── */
+    #chatbot-fab {
+      position: fixed; bottom: 28px; right: 28px; z-index: 1000;
+      width: 54px; height: 54px; border-radius: 50%;
+      background: #1e3a5f; color: #fff; border: none; cursor: pointer;
+      font-size: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, transform 0.2s;
+    }
+    #chatbot-fab:hover { background: #2d5490; transform: scale(1.07); }
+    #chatbot-fab .fab-badge {
+      position: absolute; top: 4px; right: 4px;
+      width: 10px; height: 10px; background: #22c55e; border-radius: 50%;
+      border: 2px solid #fff; display: none;
+    }
+    #chatbot-panel {
+      position: fixed; bottom: 92px; right: 28px; z-index: 999;
+      width: 370px; max-width: calc(100vw - 40px);
+      background: #fff; border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: opacity 0.2s, transform 0.2s;
+      opacity: 0; transform: translateY(12px) scale(0.97); pointer-events: none;
+      max-height: 520px;
+    }
+    #chatbot-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+    .cb-header {
+      background: #1e3a5f; color: #fff;
+      padding: 13px 16px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .cb-header-left { display: flex; align-items: center; gap: 10px; }
+    .cb-avatar { width: 32px; height: 32px; border-radius: 50%; background: #3b82d4; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .cb-header-info { line-height: 1.3; }
+    .cb-header-info strong { font-size: 0.9rem; display: block; }
+    .cb-header-info span { font-size: 0.72rem; opacity: 0.75; }
+    .cb-close { background: none; border: none; color: #fff; cursor: pointer; font-size: 1.1rem; opacity: 0.7; padding: 2px 6px; border-radius: 4px; }
+    .cb-close:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+    .cb-api-bar {
+      background: #f7f8fa; border-bottom: 1px solid #e5e7eb;
+      padding: 8px 12px; display: flex; gap: 6px; align-items: center;
+    }
+    .cb-api-bar input {
+      flex: 1; padding: 5px 9px; border: 1px solid #e5e7eb; border-radius: 6px;
+      font-size: 0.78rem; color: #1f2328; font-family: monospace;
+    }
+    .cb-api-bar input:focus { outline: none; border-color: #3b82d4; }
+    .cb-api-bar button {
+      padding: 5px 10px; font-size: 0.75rem; font-weight: 600;
+      border: none; border-radius: 6px; cursor: pointer;
+      background: #1e3a5f; color: #fff;
+    }
+    .cb-api-bar button:hover { background: #2d5490; }
+    #cb-messages {
+      flex: 1; overflow-y: auto; padding: 14px 12px;
+      display: flex; flex-direction: column; gap: 10px;
+      background: #f7f8fa; min-height: 0;
+    }
+    .cb-msg { display: flex; gap: 8px; align-items: flex-end; }
+    .cb-msg.user { flex-direction: row-reverse; }
+    .cb-bubble {
+      max-width: 82%; padding: 9px 13px; border-radius: 14px;
+      font-size: 0.84rem; line-height: 1.5; word-break: break-word;
+    }
+    .cb-msg.bot .cb-bubble { background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; color: #1f2328; }
+    .cb-msg.user .cb-bubble { background: #1e3a5f; color: #fff; border-bottom-right-radius: 4px; }
+    .cb-msg-icon { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; }
+    .cb-msg.bot .cb-msg-icon { background: #dbeafe; }
+    .cb-msg.user .cb-msg-icon { background: #1e3a5f; color: #fff; }
+    .cb-typing { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+    .cb-typing span { width: 7px; height: 7px; border-radius: 50%; background: #3b82d4; animation: cb-bounce 1.2s infinite; }
+    .cb-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .cb-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes cb-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+    .cb-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 4px; background: #f7f8fa; border-top: 1px solid #e5e7eb; }
+    .cb-chip {
+      padding: 4px 10px; border-radius: 99px; border: 1px solid #cbd5e1;
+      font-size: 0.75rem; cursor: pointer; background: #fff; color: #1e3a5f;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .cb-chip:hover { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+    .cb-footer {
+      display: flex; gap: 8px; padding: 10px 12px;
+      border-top: 1px solid #e5e7eb; background: #fff; align-items: flex-end;
+    }
+    #cb-input {
+      flex: 1; border: 1px solid #e5e7eb; border-radius: 8px;
+      padding: 8px 11px; font-size: 0.85rem; resize: none;
+      max-height: 90px; min-height: 36px; font-family: inherit;
+      line-height: 1.4; color: #1f2328;
+    }
+    #cb-input:focus { outline: none; border-color: #3b82d4; }
+    #cb-send {
+      width: 36px; height: 36px; border-radius: 8px; border: none;
+      background: #1e3a5f; color: #fff; cursor: pointer; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    #cb-send:hover { background: #2d5490; }
+    #cb-send:disabled { background: #aaa; cursor: not-allowed; }
+    @media print { #chatbot-fab, #chatbot-panel { display: none !important; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 Dashboard Penggunaan Gaji</h1>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span id="tarikh-header"></span>
+    <button class="btn-excel no-print" id="btnExcel" onclick="eksport_excel()">📊 Export Excel</button>
+    <button class="btn-pdf no-print" id="btnPdf" onclick="muat_turun_pdf()">⬇️ Muat Turun PDF</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- PDF hidden report header (shown only on print) -->
+  <div class="pdf-report-header" id="pdfReportHeader">
+    <h2 id="pdfTitle">Laporan Penggunaan Gaji</h2>
+    <p id="pdfSubtitle"></p>
+  </div>
+
+  <!-- Gaji Input -->
+  <div class="gaji-bar">
+    <label>💰 Gaji Bersih Bulanan (RM):</label>
+    <input type="number" id="inputGaji" value="5000" min="0" step="100" oninput="kiraSemuanya()" />
+    <span class="hint">Masukkan gaji bersih (selepas tolak KWSP, PCB, SOCSO)</span>
+  </div>
+
+  <!-- Month Tabs -->
+  <div class="tabs" id="tabsBulan"></div>
+
+  <!-- KPI -->
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <!-- Charts Row 1 -->
+  <div class="grid2">
+    <div class="card">
+      <h3>Agihan Perbelanjaan (Donut)</h3>
+      <canvas id="chartDonut" height="220"></canvas>
+    </div>
+    <div class="card">
+      <h3>Trend Bulanan (Bar)</h3>
+      <canvas id="chartBar" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="grid2">
+    <div class="card">
+      <h3>Analisis 50/30/20 (Peraturan Belanjawan)</h3>
+      <canvas id="chart503020" height="200"></canvas>
+    </div>
+    <div class="card">
+      <h3>Nisbah Simpanan vs Perbelanjaan</h3>
+      <canvas id="chartLine" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Progress bars + insights -->
+  <div class="grid2">
+    <div class="card">
+      <h3>Agihan Mengikut Kategori (%)</h3>
+      <div id="progressBars"></div>
+    </div>
+    <div class="card">
+      <h3>🔍 Analisis & Cadangan</h3>
+      <ul class="insight-list" id="insightList"></ul>
+    </div>
+  </div>
+
+  <!-- Input Tables -->
+  <div class="input-section">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+      <div style="font-size:1rem;font-weight:700;color:#1e3a5f;">✏️ Input Item Perbelanjaan &amp; Simpanan</div>
+      <div class="bulan-select-wrap">
+        <label for="globalBulan">Bulan:</label>
+        <select id="globalBulan" onchange="tukarBulanInput()"></select>
+        <button class="btn" onclick="simpanSemua()">💾 Simpan &amp; Kira</button>
+      </div>
+    </div>
+    <!-- Tab headers -->
+    <div class="input-tabs">
+      <button class="input-tab active" onclick="bukaPanel('keperluan',this)">🏠 Keperluan</button>
+      <button class="input-tab" onclick="bukaPanel('keinginan',this)">🛍️ Keinginan</button>
+      <button class="input-tab" onclick="bukaPanel('simpanan',this)">💰 Simpanan</button>
+      <button class="input-tab" onclick="bukaPanel('pelaburan',this)">📈 Pelaburan</button>
+      <button class="input-tab" onclick="bukaPanel('hutang',this)">💳 Hutang</button>
+    </div>
+    <!-- Keperluan -->
+    <div class="input-panel active" id="panel-keperluan">
+      <table class="input-table"><thead><tr><th>#</th><th>Penerangan</th><th>Jumlah (RM)</th><th>Jumlah Dikira</th><th></th></tr></thead><tbody id="rows-keperluan"></tbody></table>
+      <div class="panel-footer">
+        <button class="btn-tambah" onclick="tambahBaris('keperluan')">＋ Tambah Item</button>
+        <div><span class="total-lbl">Jumlah Keperluan:</span>&nbsp;<span class="total-val" id="total-keperluan">RM 0.00</span></div>
+      </div>
+    </div>
+    <!-- Keinginan -->
+    <div class="input-panel" id="panel-keinginan">
+      <table class="input-table"><thead><tr><th>#</th><th>Penerangan</th><th>Jumlah (RM)</th><th>Jumlah Dikira</th><th></th></tr></thead><tbody id="rows-keinginan"></tbody></table>
+      <div class="panel-footer">
+        <button class="btn-tambah" onclick="tambahBaris('keinginan')">＋ Tambah Item</button>
+        <div><span class="total-lbl">Jumlah Keinginan:</span>&nbsp;<span class="total-val" id="total-keinginan">RM 0.00</span></div>
+      </div>
+    </div>
+    <!-- Simpanan -->
+    <div class="input-panel" id="panel-simpanan">
+      <table class="input-table"><thead><tr><th>#</th><th>Penerangan</th><th>Jumlah (RM)</th><th>Jumlah Dikira</th><th></th></tr></thead><tbody id="rows-simpanan"></tbody></table>
+      <div class="panel-footer">
+        <button class="btn-tambah" onclick="tambahBaris('simpanan')">＋ Tambah Item</button>
+        <div><span class="total-lbl">Jumlah Simpanan:</span>&nbsp;<span class="total-val" id="total-simpanan">RM 0.00</span></div>
+      </div>
+    </div>
+    <!-- Pelaburan -->
+    <div class="input-panel" id="panel-pelaburan">
+      <table class="input-table"><thead><tr><th>#</th><th>Penerangan</th><th>Jumlah (RM)</th><th>Jumlah Dikira</th><th></th></tr></thead><tbody id="rows-pelaburan"></tbody></table>
+      <div class="panel-footer">
+        <button class="btn-tambah" onclick="tambahBaris('pelaburan')">＋ Tambah Item</button>
+        <div><span class="total-lbl">Jumlah Pelaburan:</span>&nbsp;<span class="total-val" id="total-pelaburan">RM 0.00</span></div>
+      </div>
+    </div>
+    <!-- Hutang -->
+    <div class="input-panel" id="panel-hutang">
+      <table class="input-table"><thead><tr><th>#</th><th>Penerangan</th><th>Jumlah (RM)</th><th>Jumlah Dikira</th><th></th></tr></thead><tbody id="rows-hutang"></tbody></table>
+      <div class="panel-footer">
+        <button class="btn-tambah" onclick="tambahBaris('hutang')">＋ Tambah Item</button>
+        <div><span class="total-lbl">Jumlah Hutang:</span>&nbsp;<span class="total-val" id="total-hutang">RM 0.00</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Table -->
+  <div class="card">
+    <h3>📋 Ringkasan Semua Item (Bulan Aktif: <span id="lblBulanRingkasan">—</span>)</h3>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>#</th><th>Penerangan</th><th>Kategori</th><th>Bulan</th><th>Jumlah (RM)</th><th>% Gaji</th></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div id="tableEmpty" class="empty">Belum ada item. Isi jadual di atas dan tekan "Simpan &amp; Kira".</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── CHATBOT WIDGET ── -->
+<button id="chatbot-fab" onclick="toggleChatbot()" title="Tanya AI Kewangan">
+  <span id="fab-icon">🤖</span>
+  <span class="fab-badge" id="fab-badge"></span>
+</button>
+
+<div id="chatbot-panel">
+  <div class="cb-header">
+    <div class="cb-header-left">
+      <div class="cb-avatar">🤖</div>
+      <div class="cb-header-info">
+        <strong>Penasihat Kewangan AI</strong>
+        <span>gpt-4o-mini · Membaca data dashboard anda</span>
+      </div>
+    </div>
+    <button class="cb-close" onclick="toggleChatbot()" title="Tutup">✕</button>
+  </div>
+  <div class="cb-api-bar">
+    <input type="password" id="cb-apikey" placeholder="Masukkan OpenAI API Key (sk-...)" />
+    <button onclick="simpanApiKey()">Simpan</button>
+  </div>
+  <div id="cb-messages">
+    <div class="cb-msg bot">
+      <div class="cb-msg-icon">🤖</div>
+      <div class="cb-bubble">Salam! Saya <strong>Penasihat Kewangan AI</strong> anda. Saya boleh menganalisis data gaji dan perbelanjaan anda secara langsung.<br><br>Masukkan OpenAI API Key di atas untuk bermula. 🔑</div>
+    </div>
+  </div>
+  <div class="cb-suggestions" id="cb-chips">
+    <span class="cb-chip" onclick="cbChip(this)">📊 Analisis kewangan saya</span>
+    <span class="cb-chip" onclick="cbChip(this)">💰 Tips jimat wang</span>
+    <span class="cb-chip" onclick="cbChip(this)">📈 Strategi pelaburan</span>
+    <span class="cb-chip" onclick="cbChip(this)">💳 Cara bayar hutang</span>
+  </div>
+  <div class="cb-footer">
+    <textarea id="cb-input" placeholder="Tanya sesuatu tentang kewangan anda..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();hantarChatbot();}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>
+    <button id="cb-send" onclick="hantarChatbot()" title="Hantar">➤</button>
+  </div>
+</div>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const BULAN = ["Jan","Feb","Mac","Apr","Mei","Jun","Jul","Ogo","Sep","Okt","Nov","Dis"];
+const WARNA_KAT = {
+  "Keperluan":  "#3b82d4",
+  "Keinginan":  "#f59e0b",
+  "Simpanan":   "#22c55e",
+  "Pelaburan":  "#7c5cd8",
+  "Hutang":     "#ef4444"
+};
+
+let semuaData = [];
+
+let idCounter = 1;
+let bulanAktif = "Semua";
+let charts = {};
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+const KATEGORI_LIST = ["Keperluan","Keinginan","Simpanan","Pelaburan","Hutang"];
+// Store: inputStore[bulan][kategori] = [{desc, amount}, ...]
+const inputStore = {};
+
+function init() {
+  document.getElementById("tarikh-header").textContent = new Date().toLocaleDateString("ms-MY", {weekday:"long", year:"numeric", month:"long", day:"numeric"});
+
+  // Populate bulan selectors
+  const gb = document.getElementById("globalBulan");
+  BULAN.forEach(b => { const o = document.createElement("option"); o.value = b; o.textContent = b; gb.appendChild(o); });
+
+  // Build 1 row awal for each kategori
+  KATEGORI_LIST.forEach(kat => { tambahBaris(kat.toLowerCase()); });
+
+  buildTabs();
+  kiraSemuanya();
+}
+
+// Bina 1 baris baru dalam tbody kategori
+function tambahBaris(katKey, desc = "", amount = "") {
+  const tbody = document.getElementById("rows-" + katKey);
+  const idx = tbody.rows.length; // nombor baris semasa
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${idx + 1}</td>
+    <td><input type="text" placeholder="Penerangan item" value="${desc}" oninput="kirasemasa('${katKey}')" /></td>
+    <td><input type="number" placeholder="0.00" min="0" step="0.01" value="${amount}" oninput="kirasemasa('${katKey}')" /></td>
+    <td class="calc-cell" style="color:#aaa;font-size:0.82rem;">—</td>
+    <td><button class="btn-hapus-baris" onclick="hapusBaris(this,'${katKey}')" title="Padam baris">×</button></td>
+  `;
+  tbody.appendChild(tr);
+  kirasemasa(katKey);
+}
+
+// Hapus baris dan renumber
+function hapusBaris(btn, katKey) {
+  const tbody = document.getElementById("rows-" + katKey);
+  if (tbody.rows.length <= 1) return; // kekal sekurang-kurangnya 1
+  btn.closest("tr").remove();
+  // Renumber
+  Array.from(tbody.rows).forEach((r, i) => { r.cells[0].textContent = i + 1; });
+  kirasemasa(katKey);
+}
+
+function kirasemasa(katKey) {
+  const tbody = document.getElementById("rows-" + katKey);
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 1;
+  let total = 0;
+  Array.from(tbody.rows).forEach(tr => {
+    const amt = parseFloat(tr.cells[2].querySelector("input").value) || 0;
+    total += amt;
+    const cell = tr.cells[3];
+    if (amt > 0) {
+      cell.textContent = "RM " + fmt(amt) + " (" + ((amt / gaji) * 100).toFixed(1) + "%)";
+      cell.style.color = "#1e3a5f";
+    } else {
+      cell.textContent = "—";
+      cell.style.color = "#aaa";
+    }
+  });
+  document.getElementById("total-" + katKey).textContent = "RM " + fmt(total);
+}
+
+function bukaPanel(katKey, btn) {
+  document.querySelectorAll(".input-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".input-tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("panel-"+katKey).classList.add("active");
+  btn.classList.add("active");
+}
+
+function tukarBulanInput() {
+  const bulan = document.getElementById("globalBulan").value;
+  KATEGORI_LIST.forEach(kat => {
+    const katKey = kat.toLowerCase();
+    const stored = (inputStore[bulan] && inputStore[bulan][kat]) || [];
+    const tbody = document.getElementById("rows-" + katKey);
+    tbody.innerHTML = "";
+    if (stored.length) {
+      stored.forEach(row => tambahBaris(katKey, row.desc || "", row.amount || ""));
+    } else {
+      tambahBaris(katKey);
+    }
+    kirasemasa(katKey);
+  });
+}
+
+function simpanSemua() {
+  const bulan = document.getElementById("globalBulan").value;
+  if (!inputStore[bulan]) inputStore[bulan] = {};
+
+  // Remove existing entries for this month
+  semuaData = semuaData.filter(d => d.bulan !== bulan);
+
+  KATEGORI_LIST.forEach(kat => {
+    const katKey = kat.toLowerCase();
+    const tbody = document.getElementById("rows-" + katKey);
+    inputStore[bulan][kat] = [];
+    Array.from(tbody.rows).forEach(tr => {
+      const desc   = (tr.cells[1].querySelector("input").value || "").trim();
+      const amount = parseFloat(tr.cells[2].querySelector("input").value) || 0;
+      inputStore[bulan][kat].push({ desc, amount });
+      if (desc && amount > 0) {
+        semuaData.push({ id: ++idCounter, desc, kat, bulan, amount });
+      }
+    });
+    kirasemasa(katKey);
+  });
+
+  bulanAktif = bulan;
+  buildTabs();
+  kiraSemuanya();
+  document.getElementById("lblBulanRingkasan").textContent = bulan;
+}
+
+function buildTabs() {
+  const wrap = document.getElementById("tabsBulan");
+  wrap.innerHTML = "";
+  // "Semua" tab
+  const all = document.createElement("div");
+  all.className = "tab" + (bulanAktif === "Semua" ? " active" : "");
+  all.textContent = "Semua Bulan";
+  all.onclick = () => { bulanAktif = "Semua"; buildTabs(); kiraSemuanya(); };
+  wrap.appendChild(all);
+
+  const adaBulan = [...new Set(semuaData.map(d => d.bulan))].sort((a,b) => BULAN.indexOf(a) - BULAN.indexOf(b));
+  adaBulan.forEach(b => {
+    const t = document.createElement("div");
+    t.className = "tab" + (bulanAktif === b ? " active" : "");
+    t.textContent = b;
+    t.onclick = () => { bulanAktif = b; buildTabs(); kiraSemuanya(); };
+    wrap.appendChild(t);
+  });
+}
+
+// ── MAIN CALCULATION ──────────────────────────────────────────────────────────
+function kiraSemuanya() {
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 5000;
+
+  const filtered = bulanAktif === "Semua" ? semuaData : semuaData.filter(d => d.bulan === bulanAktif);
+
+  const totalBelanja = filtered.reduce((s, d) => s + d.amount, 0);
+  const baki = gaji - totalBelanja;
+  const perbulan = bulanAktif === "Semua" ? [...new Set(semuaData.map(d=>d.bulan))].length || 1 : 1;
+  const totalGaji = gaji * perbulan;
+
+  // By kategori
+  const byKat = {};
+  filtered.forEach(d => { byKat[d.kat] = (byKat[d.kat] || 0) + d.amount; });
+
+  renderKPI(totalGaji, totalBelanja, baki, byKat, gaji * perbulan);
+  renderDonut(byKat);
+  renderProgressBars(byKat, totalGaji);
+  renderBar503020(byKat, totalGaji);
+  renderTrendBar();
+  renderLineChart();
+  renderTable(filtered, gaji);
+  renderInsights(byKat, totalGaji, baki, gaji);
+}
+
+// ── KPI ───────────────────────────────────────────────────────────────────────
+function renderKPI(totalGaji, totalBelanja, baki, byKat, gaji) {
+  const simpanan = (byKat["Simpanan"] || 0) + (byKat["Pelaburan"] || 0);
+  const hutang = byKat["Hutang"] || 0;
+  const peratusSelamat = totalGaji > 0 ? ((simpanan / totalGaji) * 100).toFixed(1) : 0;
+  const peratusBelanja = totalGaji > 0 ? ((totalBelanja / totalGaji) * 100).toFixed(1) : 0;
+
+  document.getElementById("kpiRow").innerHTML = `
+    <div class="kpi blue">
+      <label>Jumlah Gaji</label>
+      <div class="val">RM ${fmt(totalGaji)}</div>
+      <div class="sub">${bulanAktif === "Semua" ? "Kumulatif" : bulanAktif}</div>
+    </div>
+    <div class="kpi red">
+      <label>Jumlah Belanja</label>
+      <div class="val">RM ${fmt(totalBelanja)}</div>
+      <div class="sub">${peratusBelanja}% daripada gaji</div>
+    </div>
+    <div class="kpi green">
+      <label>Baki / Lebihan</label>
+      <div class="val" style="color:${baki >= 0 ? '#16a34a' : '#dc2626'}">RM ${fmt(Math.abs(baki))}${baki < 0 ? " ⚠️" : ""}</div>
+      <div class="sub">${baki >= 0 ? "Lebihan" : "DEFISIT!"}</div>
+    </div>
+    <div class="kpi purple">
+      <label>Simpanan + Pelaburan</label>
+      <div class="val">RM ${fmt(simpanan)}</div>
+      <div class="sub">${peratusSelamat}% kadar simpanan</div>
+    </div>
+    <div class="kpi orange">
+      <label>Jumlah Hutang</label>
+      <div class="val">RM ${fmt(hutang)}</div>
+      <div class="sub">${totalGaji > 0 ? ((hutang/totalGaji)*100).toFixed(1) : 0}% daripada gaji</div>
+    </div>
+  `;
+}
+
+// ── DONUT ─────────────────────────────────────────────────────────────────────
+function renderDonut(byKat) {
+  const labels = Object.keys(byKat);
+  const data = labels.map(k => byKat[k]);
+  const colors = labels.map(k => WARNA_KAT[k] || "#ccc");
+  destroyChart("chartDonut");
+  charts["chartDonut"] = new Chart(document.getElementById("chartDonut"), {
+    type: "doughnut",
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
+    options: {
+      cutout: "60%",
+      plugins: {
+        legend: { position: "bottom", labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ` RM ${fmt(ctx.raw)} (${ctx.label})` } }
+      }
+    }
+  });
+}
+
+// ── PROGRESS BARS ─────────────────────────────────────────────────────────────
+function renderProgressBars(byKat, totalGaji) {
+  const wrap = document.getElementById("progressBars");
+  const KATEGORI = ["Keperluan","Keinginan","Simpanan","Pelaburan","Hutang"];
+  const CADANG   = { Keperluan:50, Keinginan:30, Simpanan:10, Pelaburan:10, Hutang:15 };
+  wrap.innerHTML = KATEGORI.map(k => {
+    const amt = byKat[k] || 0;
+    const pct = totalGaji > 0 ? Math.min((amt / totalGaji) * 100, 100) : 0;
+    const color = WARNA_KAT[k];
+    const over = pct > CADANG[k];
+    return `
+      <div class="progress-wrap">
+        <label>
+          <span>${k}</span>
+          <span style="color:${over?'#dc2626':'#57606a'}">RM ${fmt(amt)} &nbsp; ${pct.toFixed(1)}% ${over ? "⚠️" : "✓"}</span>
+        </label>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    `;
+  }).join("");
+}
+
+// ── 50/30/20 Chart ────────────────────────────────────────────────────────────
+function renderBar503020(byKat, totalGaji) {
+  const keperluan = byKat["Keperluan"] || 0;
+  const keinginan = byKat["Keinginan"] || 0;
+  const simpPelab = (byKat["Simpanan"] || 0) + (byKat["Pelaburan"] || 0);
+  const hutang    = byKat["Hutang"] || 0;
+
+  const pKep = totalGaji > 0 ? ((keperluan / totalGaji)*100).toFixed(1) : 0;
+  const pKei = totalGaji > 0 ? ((keinginan / totalGaji)*100).toFixed(1) : 0;
+  const pSim = totalGaji > 0 ? (((simpPelab+hutang) / totalGaji)*100).toFixed(1) : 0;
+
+  destroyChart("chart503020");
+  charts["chart503020"] = new Chart(document.getElementById("chart503020"), {
+    type: "bar",
+    data: {
+      labels: ["Keperluan (50%)", "Keinginan (30%)", "Simpanan/Hutang (20%)"],
+      datasets: [
+        { label: "Sebenar (%)", data: [pKep, pKei, pSim], backgroundColor: ["#3b82d4","#f59e0b","#22c55e"] },
+        { label: "Sasaran (%)", data: [50, 30, 20], backgroundColor: ["rgba(59,130,212,0.2)","rgba(245,158,11,0.2)","rgba(34,197,94,0.2)"], borderWidth: 2, borderColor: ["#3b82d4","#f59e0b","#22c55e"] }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { font: { size: 11 } } } },
+      scales: {
+        y: { beginAtZero: true, max: 80, ticks: { callback: v => v + "%" } }
+      }
+    }
+  });
+}
+
+// ── TREND BAR ─────────────────────────────────────────────────────────────────
+function renderTrendBar() {
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 5000;
+  const adaBulan = [...new Set(semuaData.map(d => d.bulan))].sort((a,b) => BULAN.indexOf(a) - BULAN.indexOf(b));
+  const totals = adaBulan.map(b => {
+    const d = semuaData.filter(x => x.bulan === b);
+    return d.reduce((s, x) => s + x.amount, 0);
+  });
+  const simpArr = adaBulan.map(b => {
+    const d = semuaData.filter(x => x.bulan === b && (x.kat === "Simpanan" || x.kat === "Pelaburan"));
+    return d.reduce((s, x) => s + x.amount, 0);
+  });
+
+  destroyChart("chartBar");
+  charts["chartBar"] = new Chart(document.getElementById("chartBar"), {
+    type: "bar",
+    data: {
+      labels: adaBulan,
+      datasets: [
+        { label: "Jumlah Belanja", data: totals, backgroundColor: "#3b82d4" },
+        { label: "Simpanan+Pelaburan", data: simpArr, backgroundColor: "#22c55e" },
+        { type: "line", label: "Gaji", data: adaBulan.map(() => gaji), borderColor: "#ef4444", borderDash: [5,5], pointRadius: 0, borderWidth: 2, fill: false }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => "RM "+v } } }
+    }
+  });
+}
+
+// ── LINE CHART (Simpanan%) ────────────────────────────────────────────────────
+function renderLineChart() {
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 5000;
+  const adaBulan = [...new Set(semuaData.map(d => d.bulan))].sort((a,b) => BULAN.indexOf(a) - BULAN.indexOf(b));
+  const simpPct = adaBulan.map(b => {
+    const d = semuaData.filter(x => x.bulan === b && (x.kat === "Simpanan" || x.kat === "Pelaburan"));
+    const s = d.reduce((t, x) => t + x.amount, 0);
+    return ((s / gaji) * 100).toFixed(1);
+  });
+  const belanjaPct = adaBulan.map(b => {
+    const d = semuaData.filter(x => x.bulan === b);
+    const s = d.reduce((t, x) => t + x.amount, 0);
+    return ((s / gaji) * 100).toFixed(1);
+  });
+
+  destroyChart("chartLine");
+  charts["chartLine"] = new Chart(document.getElementById("chartLine"), {
+    type: "line",
+    data: {
+      labels: adaBulan,
+      datasets: [
+        { label: "% Belanja", data: belanjaPct, borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.08)", fill: true, tension: 0.3 },
+        { label: "% Simpanan+Pelaburan", data: simpPct, borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.08)", fill: true, tension: 0.3 },
+        { label: "100%", data: adaBulan.map(() => 100), borderColor: "#e5e7eb", borderDash: [4,4], pointRadius: 0, fill: false }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v + "%" } } }
+    }
+  });
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+function renderTable(data, gaji) {
+  const tbody = document.getElementById("tableBody");
+  const empty = document.getElementById("tableEmpty");
+  if (!data.length) { tbody.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  tbody.innerHTML = data.map((d, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${d.desc}</td>
+      <td><span class="badge ${d.kat.toLowerCase()}">${d.kat}</span></td>
+      <td>${d.bulan}</td>
+      <td><strong>RM ${fmt(d.amount)}</strong></td>
+      <td>${((d.amount / gaji) * 100).toFixed(1)}%</td>
+    </tr>
+  `).join("");
+}
+
+// ── INSIGHTS ──────────────────────────────────────────────────────────────────
+function renderInsights(byKat, totalGaji, baki, gaji) {
+  const insights = [];
+  const keperluan = byKat["Keperluan"] || 0;
+  const keinginan = byKat["Keinginan"] || 0;
+  const simpanan  = byKat["Simpanan"] || 0;
+  const pelaburan = byKat["Pelaburan"] || 0;
+  const hutang    = byKat["Hutang"] || 0;
+
+  const pKep = totalGaji > 0 ? (keperluan / totalGaji) * 100 : 0;
+  const pKei = totalGaji > 0 ? (keinginan / totalGaji) * 100 : 0;
+  const pSim = totalGaji > 0 ? ((simpanan + pelaburan) / totalGaji) * 100 : 0;
+  const pHut = totalGaji > 0 ? (hutang / totalGaji) * 100 : 0;
+
+  if (baki < 0)
+    insights.push({ dot:"red", msg:`⚠️ <strong>Defisit RM ${fmt(Math.abs(baki))}!</strong> Perbelanjaan melebihi gaji. Semak semula item keinginan dan hutang.` });
+  else if (baki > 0)
+    insights.push({ dot:"green", msg:`✅ Baki lebihan <strong>RM ${fmt(baki)}</strong>. Pertimbangkan untuk menambah simpanan atau pelaburan.` });
+
+  if (pKep > 50)
+    insights.push({ dot:"red", msg:`Keperluan melebihi <strong>50% gaji</strong> (${pKep.toFixed(1)}%). Cuba cari cara kurangkan kos sewa atau utiliti.` });
+  else
+    insights.push({ dot:"green", msg:`Keperluan dalam had selamat di <strong>${pKep.toFixed(1)}%</strong> (sasaran ≤50%).` });
+
+  if (pKei > 30)
+    insights.push({ dot:"yellow", msg:`Keinginan terlalu tinggi: <strong>${pKei.toFixed(1)}%</strong>. Peraturan 50/30/20 cadangkan ≤30%.` });
+  else
+    insights.push({ dot:"green", msg:`Kawalan keinginan baik: <strong>${pKei.toFixed(1)}%</strong> (sasaran ≤30%).` });
+
+  if (pSim < 20)
+    insights.push({ dot:"yellow", msg:`Simpanan + Pelaburan hanya <strong>${pSim.toFixed(1)}%</strong>. Pakar kewangan cadangkan sekurang-kurangnya 20%.` });
+  else
+    insights.push({ dot:"green", msg:`Kadar simpanan/pelaburan sihat: <strong>${pSim.toFixed(1)}%</strong>. Teruskan!` });
+
+  if (pHut > 15)
+    insights.push({ dot:"red", msg:`Nisbah hutang <strong>${pHut.toFixed(1)}%</strong> terlalu tinggi. Cuba bayar hutang faedah tinggi dahulu (Kaedah Avalanche).` });
+  else if (pHut > 0)
+    insights.push({ dot:"blue", msg:`Nisbah hutang di paras boleh urus: <strong>${pHut.toFixed(1)}%</strong>.` });
+
+  if (simpanan === 0 && pelaburan === 0)
+    insights.push({ dot:"red", msg:`Tiada simpanan atau pelaburan direkodkan! Mulakan dengan sekurang-kurangnya 10% daripada gaji.` });
+
+  const danaCemas = 6 * gaji;
+  if (simpanan < danaCemas * 0.1)
+    insights.push({ dot:"yellow", msg:`Pastikan ada <strong>Dana Kecemasan</strong> bersamaan 3–6 bulan gaji (RM ${fmt(danaCemas)}).` });
+
+  document.getElementById("insightList").innerHTML = insights.map(i =>
+    `<li><span class="dot ${i.dot}"></span><span>${i.msg}</span></li>`
+  ).join("");
+}
+
+
+// ── PDF DOWNLOAD ──────────────────────────────────────────────────────────────
+async function muat_turun_pdf() {
+  const btn = document.getElementById("btnPdf");
+  btn.disabled = true;
+  btn.textContent = "⏳ Menyediakan PDF...";
+
+  // Set report header info
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 0;
+  const bulanLabel = bulanAktif === "Semua" ? "Semua Bulan" : bulanAktif;
+  document.getElementById("pdfTitle").textContent = `Laporan Penggunaan Gaji — ${bulanLabel}`;
+  document.getElementById("pdfSubtitle").textContent =
+    `Gaji Bersih: RM ${fmt(gaji)}  |  Tarikh Cetak: ${new Date().toLocaleDateString("ms-MY", {day:"2-digit", month:"long", year:"numeric"})}`;
+
+  // Small delay so charts are fully rendered
+  await new Promise(r => setTimeout(r, 300));
+
+  window.print();
+
+  btn.disabled = false;
+  btn.textContent = "⬇️ Muat Turun PDF";
+}
+
+// ── EXPORT EXCEL ──────────────────────────────────────────────────────────────
+function eksport_excel() {
+  const btn = document.getElementById("btnExcel");
+  btn.disabled = true;
+  btn.textContent = "⏳ Menyediakan...";
+
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 0;
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: Semua Data ───────────────────────────────────────────────────
+  const hdrData = [["Laporan Penggunaan Gaji"], [`Gaji Bersih Bulanan: RM ${fmt(gaji)}`], [`Tarikh: ${new Date().toLocaleDateString("ms-MY")}`], []];
+  const colData = [["#","Penerangan","Kategori","Bulan","Jumlah (RM)","% Gaji"]];
+  semuaData.forEach((d, i) => {
+    colData.push([i+1, d.desc, d.kat, d.bulan, d.amount, +((d.amount/gaji)*100).toFixed(2)]);
+  });
+  const wsData = XLSX.utils.aoa_to_sheet([...hdrData, ...colData]);
+  // column widths
+  wsData["!cols"] = [{wch:4},{wch:32},{wch:14},{wch:8},{wch:14},{wch:10}];
+  // merge title cells A1:F1
+  wsData["!merges"] = [{s:{r:0,c:0}, e:{r:0,c:5}}, {s:{r:1,c:0}, e:{r:1,c:5}}, {s:{r:2,c:0}, e:{r:2,c:5}}];
+  XLSX.utils.book_append_sheet(wb, wsData, "Semua Data");
+
+  // ── Sheet 2: Ringkasan Bulanan ────────────────────────────────────────────
+  const adaBulan = [...new Set(semuaData.map(d => d.bulan))].sort((a,b) => BULAN.indexOf(a)-BULAN.indexOf(b));
+  const hdrSum = [["Ringkasan Bulanan"], [`Gaji Bersih: RM ${fmt(gaji)}`], []];
+  const colSum = [["Bulan","Keperluan (RM)","Keinginan (RM)","Simpanan (RM)","Pelaburan (RM)","Hutang (RM)","Jumlah Belanja","Baki (RM)"]];
+  adaBulan.forEach(b => {
+    const rows = semuaData.filter(d => d.bulan === b);
+    const kep  = rows.filter(d=>d.kat==="Keperluan").reduce((s,d)=>s+d.amount,0);
+    const kei  = rows.filter(d=>d.kat==="Keinginan").reduce((s,d)=>s+d.amount,0);
+    const sim  = rows.filter(d=>d.kat==="Simpanan").reduce((s,d)=>s+d.amount,0);
+    const pel  = rows.filter(d=>d.kat==="Pelaburan").reduce((s,d)=>s+d.amount,0);
+    const hut  = rows.filter(d=>d.kat==="Hutang").reduce((s,d)=>s+d.amount,0);
+    const jumlah = kep+kei+sim+pel+hut;
+    colSum.push([b, kep, kei, sim, pel, hut, jumlah, +(gaji-jumlah).toFixed(2)]);
+  });
+  const wsSum = XLSX.utils.aoa_to_sheet([...hdrSum, ...colSum]);
+  wsSum["!cols"] = [{wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:12},{wch:16},{wch:12}];
+  wsSum["!merges"] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  XLSX.utils.book_append_sheet(wb, wsSum, "Ringkasan Bulanan");
+
+  // ── Sheet per Kategori ────────────────────────────────────────────────────
+  KATEGORI_LIST.forEach(kat => {
+    const rows = semuaData.filter(d => d.kat === kat);
+    if (!rows.length) return;
+    const hdrK = [[`Laporan ${kat}`], []];
+    const colK = [["#","Penerangan","Bulan","Jumlah (RM)","% Gaji"]];
+    rows.forEach((d,i) => colK.push([i+1, d.desc, d.bulan, d.amount, +((d.amount/gaji)*100).toFixed(2)]));
+    // subtotal row
+    const total = rows.reduce((s,d)=>s+d.amount,0);
+    colK.push(["","JUMLAH","", total, +((total/gaji)*100).toFixed(2)]);
+    const ws = XLSX.utils.aoa_to_sheet([...hdrK, ...colK]);
+    ws["!cols"] = [{wch:4},{wch:32},{wch:8},{wch:14},{wch:10}];
+    ws["!merges"] = [{s:{r:0,c:0},e:{r:0,c:4}}];
+    XLSX.utils.book_append_sheet(wb, ws, kat);
+  });
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  const tarikhFail = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Laporan_Gaji_${tarikhFail}.xlsx`);
+
+  btn.disabled = false;
+  btn.textContent = "📊 Export Excel";
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString("ms-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ── CHATBOT ───────────────────────────────────────────────────────────────────
+let cbOpen = false;
+let cbHistory = [];
+let cbApiKey = localStorage.getItem("cb_openai_key") || "";
+
+function toggleChatbot() {
+  cbOpen = !cbOpen;
+  document.getElementById("chatbot-panel").classList.toggle("open", cbOpen);
+  document.getElementById("fab-icon").textContent = cbOpen ? "✕" : "🤖";
+  document.getElementById("fab-badge").style.display = "none";
+  if (cbOpen) {
+    if (cbApiKey) document.getElementById("cb-apikey").value = "••••••••••••••••";
+    setTimeout(() => document.getElementById("cb-input").focus(), 200);
+  }
+}
+
+function simpanApiKey() {
+  const val = document.getElementById("cb-apikey").value.trim();
+  if (!val || val.startsWith("•")) return;
+  if (!val.startsWith("sk-")) { alert("API Key tidak sah. Mesti bermula dengan 'sk-'."); return; }
+  cbApiKey = val;
+  localStorage.setItem("cb_openai_key", val);
+  document.getElementById("cb-apikey").value = "••••••••••••••••";
+  cbTambahMesej("bot", "✅ API Key disimpan! Sekarang anda boleh bertanya tentang kewangan anda.");
+}
+
+function cbDapatKonteks() {
+  const gaji = parseFloat(document.getElementById("inputGaji").value) || 0;
+  const filtered = bulanAktif === "Semua" ? semuaData : semuaData.filter(d => d.bulan === bulanAktif);
+  const byKat = {};
+  filtered.forEach(d => { byKat[d.kat] = (byKat[d.kat] || 0) + d.amount; });
+  const total = filtered.reduce((s,d) => s + d.amount, 0);
+  const baki = gaji - total;
+  const adaBulan = [...new Set(semuaData.map(d => d.bulan))];
+
+  let ctx = `Berikut adalah data kewangan pengguna dari Dashboard Penggunaan Gaji:\n`;
+  ctx += `- Gaji bersih bulanan: RM ${fmt(gaji)}\n`;
+  ctx += `- Tempoh dipaparkan: ${bulanAktif}\n`;
+  ctx += `- Jumlah perbelanjaan: RM ${fmt(total)} (${gaji > 0 ? ((total/gaji)*100).toFixed(1) : 0}% gaji)\n`;
+  ctx += `- Baki/Lebihan: RM ${fmt(baki)}${baki < 0 ? " (DEFISIT)" : ""}\n`;
+  Object.entries(byKat).forEach(([k,v]) => {
+    ctx += `- ${k}: RM ${fmt(v)} (${gaji > 0 ? ((v/gaji)*100).toFixed(1) : 0}%)\n`;
+  });
+  if (adaBulan.length) ctx += `- Data ada untuk bulan: ${adaBulan.join(", ")}\n`;
+  if (!semuaData.length) ctx += `- Tiada data item dimasukkan lagi.\n`;
+
+  return ctx;
+}
+
+function cbTambahMesej(role, html, isTyping = false) {
+  const wrap = document.getElementById("cb-messages");
+  const div = document.createElement("div");
+  div.className = "cb-msg " + role;
+  if (isTyping) div.id = "cb-typing-indicator";
+  div.innerHTML = `
+    <div class="cb-msg-icon">${role === "bot" ? "🤖" : "👤"}</div>
+    <div class="cb-bubble">${isTyping
+      ? '<div class="cb-typing"><span></span><span></span><span></span></div>'
+      : html}</div>
+  `;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
+function cbBuangTyping() {
+  const el = document.getElementById("cb-typing-indicator");
+  if (el) el.remove();
+}
+
+function cbChip(el) {
+  document.getElementById("cb-input").value = el.textContent.replace(/^[^\w\s]+\s*/u, "").trim();
+  hantarChatbot();
+}
+
+async function hantarChatbot() {
+  const input = document.getElementById("cb-input");
+  const soalan = input.value.trim();
+  if (!soalan) return;
+
+  if (!cbApiKey) {
+    cbTambahMesej("bot", "⚠️ Sila masukkan OpenAI API Key terlebih dahulu di bahagian atas.");
+    return;
+  }
+
+  input.value = "";
+  input.style.height = "36px";
+  document.getElementById("cb-send").disabled = true;
+
+  cbTambahMesej("user", soalan);
+  cbHistory.push({ role: "user", content: soalan });
+
+  cbTambahMesej("bot", "", true);
+
+  const systemPrompt = `Anda adalah Penasihat Kewangan Peribadi yang pakar dalam pengurusan wang, bajet, simpanan, pelaburan, dan pengurusan hutang di Malaysia. Jawab dalam Bahasa Melayu yang mesra dan profesional. Gunakan data berikut untuk memberi nasihat yang tepat dan relevan:\n\n${cbDapatKonteks()}\n\nBerikan jawapan yang ringkas, praktikal, dan berikan cadangan spesifik berdasarkan data pengguna. Gunakan angka sebenar dari data apabila relevan.`;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + cbApiKey
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...cbHistory
+        ],
+        max_tokens: 600,
+        temperature: 0.7
+      })
+    });
+
+    cbBuangTyping();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 401) {
+        cbTambahMesej("bot", "❌ API Key tidak sah atau telah tamat. Sila masukkan API Key yang betul.");
+      } else if (res.status === 429) {
+        cbTambahMesej("bot", "⏳ Had permintaan dicapai. Sila tunggu sebentar dan cuba lagi.");
+      } else {
+        cbTambahMesej("bot", `❌ Ralat: ${msg}`);
+      }
+    } else {
+      const data = await res.json();
+      const jawapan = data.choices?.[0]?.message?.content || "Tiada jawapan diterima.";
+      cbHistory.push({ role: "assistant", content: jawapan });
+      // Keep history to last 10 exchanges (20 messages)
+      if (cbHistory.length > 20) cbHistory = cbHistory.slice(-20);
+      cbTambahMesej("bot", jawapan.replace(/\n/g, "<br>"));
+    }
+  } catch (e) {
+    cbBuangTyping();
+    cbTambahMesej("bot", "❌ Gagal berhubung dengan OpenAI. Semak sambungan internet anda.");
+  }
+
+  document.getElementById("cb-send").disabled = false;
+  document.getElementById("cb-messages").scrollTop = 9999;
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
